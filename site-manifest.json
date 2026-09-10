@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-09-10T21:41:50.245Z",
+  "files": [
+    "assets/boss.jpg",
+    "assets/hero-poster.jpg",
+    "assets/hero.mp4",
+    "assets/profile.jpg",
+    "assets/rolex.jpg",
+    "config.js",
+    "content.js",
+    "experience.css",
+    "experience.js",
+    "hub.html",
+    "index.html"
+  ],
+  "guides": 3,
+  "media": 5
+}

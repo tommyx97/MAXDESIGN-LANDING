@@ -1,7 +1,8 @@
 (function(){
   const e=MaxContent.escape;
-  function addCommunityPanel(){
+  function addCommunityPanel(c){
     const section=document.createElement('section');section.className='panel';section.dataset.p='communityContact';
+    section.hidden=!MaxContent.sectionVisible(c,'communityContact');
     section.innerHTML='<div class="panel-head"></div><div id="communityFormSlot"></div>';
     document.querySelector('.sheet-inner').append(section);
   }
@@ -10,6 +11,7 @@
     for(const [kind,panel] of [['collaboration','contact'],['community','communityContact']]){
       const f=c.forms?.[kind]||{to:c.links?.email,endpoint:c.links?.formEndpoint,objectives:c.contact?.objectives};
       const section=document.querySelector(`[data-p="${panel}"]`);
+      if(!section||!MaxContent.sectionVisible(c,panel)){if(section)section.hidden=true;continue;}
       const heading=kind==='community'?'Informazioni e call community':'Collaborazioni e progetti';
       section.querySelector('.panel-head').innerHTML=`<span class="eyebrow">${heading}</span><h2>${e(f.title||heading)}</h2><p>${e(f.intro||'')}</p>`;
       let form=section.querySelector('form');if(!form){form=document.createElement('form');document.querySelector('#communityFormSlot').append(form);}form.id=kind+'Form';form.noValidate=false;

@@ -4,6 +4,7 @@
   const slug=value=>String(value||'guida').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'guida';
   function uniqueSlug(title,items){let base=slug(title),value=base,n=2;while(items.some(p=>p.slug===value))value=base+'-'+n++;return value;}
   function link(config,id){const base=config.publishing?.baseUrl||new URL('index.html',location.href).href;return base.split('#')[0].split('?')[0]+'#prompt/'+encodeURIComponent(id);}
+  function sectionVisible(config,id){const state=config?.sectionSettings?.[id];return state?.removed!==true&&state?.visible!==false;}
   const defaultTemplate={tool:'',stepTitles:['Prepara','Genera','Rifinisci']};
   function fromSteps(brief,items=[]){
     const title=String(brief.title||'').trim();
@@ -31,6 +32,8 @@
     for(const key of ['tiles','prompts','tools','free','socials','projects'])if(c[key]!==undefined&&!Array.isArray(c[key]))errors.push(key+': elenco non valido.');
     if(errors.length)return errors;
     const seen=new Set();
+    const color=/^#[0-9a-f]{6}$/i;
+    for(const [name,value] of Object.entries(c.appearance||{}))if(value&&!color.test(value))errors.push(`Colore generale non valido: ${name}. Usa il formato #00356B.`);
     for(const p of c.prompts||[]){
       if(!p||typeof p!=='object'){errors.push('Guida non valida.');continue;}
       if(!p.title?.trim())errors.push('Ogni guida deve avere un titolo.');
@@ -38,6 +41,7 @@
       if(seen.has(p.slug))errors.push('Link duplicato: '+p.slug);seen.add(p.slug);
       if(p.status==='published'&&!p.prompt?.trim()&&!p.guide?.steps?.some(s=>s.body?.trim()||s.blocks?.some(b=>b.code?.trim())))errors.push(p.title+': aggiungi contenuto prima di pubblicare.');
     }
+    for(const [i,tile] of (c.tiles||[]).entries())for(const [name,value] of Object.entries(tile.colors||{}))if(value&&!color.test(value))errors.push(`Blocco ${i+1}, colore ${name} non valido. Usa il formato #00356B.`);
     const email=/^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
     for(const [kind,f] of Object.entries(c.forms||{})){
       for(const key of ['to','cc'])if(f[key]&&f[key].split(',').some(s=>!email.test(s.trim())))errors.push(kind+': indirizzo email non valido ('+key+').');
@@ -82,6 +86,6 @@
     return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(p.title)} — Maxdesign</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500&family=Jost:wght@400;500&display=swap"><style>@page{size:A4;margin:18mm}*{box-sizing:border-box}body{margin:0;color:#232323;background:#F5F3F0;font:16px/1.6 Jost,Arial,sans-serif}.page{max-width:800px;margin:auto;padding:40px;background:white}.brand,.label{color:#00356B;letter-spacing:.12em;font-size:12px;text-transform:uppercase}header{border-bottom:2px solid #00356B;padding-bottom:20px}h1,h2{font-family:Fraunces,Georgia,serif;font-weight:400;line-height:1.2}h1{font-size:36px;overflow-wrap:anywhere}h2{font-size:25px}h3{font-size:16px}p{white-space:normal}section{margin-top:30px}.hero{max-width:100%;max-height:280px;object-fit:contain;margin:24px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.65 monospace;background:#F5F3F0;border-left:3px solid #00356B;padding:16px}aside{border:1px solid #ddd;padding:14px}h1,h2,h3,.label{break-after:avoid}li,aside{break-inside:avoid}footer{border-top:1px solid #ddd;margin-top:36px;padding-top:16px;font-size:12px;overflow-wrap:anywhere}nav{padding:16px;display:flex;gap:12px;align-items:center;justify-content:center}button{padding:12px 20px;border:0;border-radius:30px;background:#00356B;color:white;font:inherit;cursor:pointer}@media print{body{background:white}.page{padding:0;max-width:none}nav{display:none}a{color:#00356B}pre{box-decoration-break:clone;-webkit-box-decoration-break:clone}}</style></head><body><nav><button onclick="window.print()">Stampa / Salva come PDF</button><span>Scegli “Salva come PDF” nelle opzioni di stampa.</span></nav><main class="page"><header><div class="brand">${e(c.profile?.name||'Maxdesign®')} · Guide creative</div><h1>${e(p.title)}</h1><div>${e([p.category,p.tool].filter(Boolean).join(' · '))}</div><p>${paras(p.desc)}</p></header>${image}${p.video?`<p>Video del risultato: <a href="${e(new URL(p.video,location.href).href)}">Guarda il video online</a></p>`:""}${content}<footer>${e(c.profile?.handle||'@maxdesign.ai')} · Prompt. Processo. Creatività.<br>${c.publishing?.baseUrl?`<a href="${e(link(c,p.slug))}">${e(link(c,p.slug))}</a>`:''}</footer></main></body></html>`;
   }
   function printGuide(c,p){if(!p)return;const win=window.open('','_blank');if(!win){alert('Consenti l’apertura della scheda per esportare il PDF.');return;}win.opener=null;win.document.write(printHTML(c,p));win.document.close();}
-  const api={escape,slug,uniqueSlug,link,validate,fromMarkdown,fromBrief,fromSteps,essentials,defaultTemplate,printHTML,printGuide};
+  const api={escape,slug,uniqueSlug,link,sectionVisible,validate,fromMarkdown,fromBrief,fromSteps,essentials,defaultTemplate,printHTML,printGuide};
   if(typeof module!=='undefined')module.exports=api;root.MaxContent=api;
 })(typeof window!=='undefined'?window:globalThis);

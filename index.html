@@ -360,8 +360,18 @@ form{display:flex;flex-direction:column;gap:14px}
   let CFG=window.__MAXDESIGN_CONFIG__||{};
   try{ if(location.search.indexOf("preview")>=0){ const pv=localStorage.getItem("maxdesign_preview"); if(pv) CFG=JSON.parse(pv); } }catch(e){}
   CFG=JSON.parse(JSON.stringify(CFG));
-  CFG.prompts=(CFG.prompts||[]).filter(p=>p.status!=="draft" || location.search.includes("preview"));
+  CFG.prompts=(CFG.prompts||[]).filter(p=>p.status!=="draft" || CFG.publishing?.completeExport===true || location.search.includes("preview"));
   const esc=window.MaxContent.escape;
+  const sectionVisible=id=>window.MaxContent.sectionVisible(CFG,id);
+  const appearance=CFG.appearance||{};
+  const rootStyle=document.documentElement.style;
+  rootStyle.setProperty('--ground',appearance.pageBackground||'#F5F3F0');
+  rootStyle.setProperty('--bg',appearance.pageBackground||'#F5F3F0');
+  rootStyle.setProperty('--field',appearance.surface||'#FFFFFF');
+  rootStyle.setProperty('--ink',appearance.text||'#232323');
+  rootStyle.setProperty('--ink-soft',appearance.mutedText||'#4A4A4A');
+  rootStyle.setProperty('--davy',appearance.mutedText||'#4A4A4A');
+  rootStyle.setProperty('--blue',appearance.accent||'#00356B');
 
   function track(url,campaign,extra){
     if(!url||isPH(url))return url||"#";
@@ -388,13 +398,14 @@ form{display:flex;flex-direction:column;gap:14px}
 
   /* ---- tile renderers ---- */
   function heroCta(t){
-    if(t.buttons&&t.buttons.length) return `<div class="hero-cta">`+t.buttons.map((b,k)=>{
+    const buttons=(t.buttons||[]).filter(b=>!b.open||sectionVisible(b.open));
+    if(buttons.length) return `<div class="hero-cta">`+buttons.map((b,k)=>{
       if(b.open) return `<button class="mini ${k===0?'solid':'ghost'}" data-open="${b.open}">${esc(b.label||'Apri')} <span class="arw">→</span></button>`;
       let u=b.url; if(u==="{{INSTAGRAM_URL}}")u=CFG.links?.instagram; if(u==="{{WEBSITE_URL}}")u=CFG.links?.website;
       const dead=!u||isPH(u);
       return `<a class="mini ${k===0?'solid':'ghost'}" ${dead?'data-dead="1"':`href="${esc(u)}" target="_blank" rel="noopener"`}>${esc(b.label||'Apri')} ↗</a>`;
     }).join("")+`</div>`;
-    return `<div class="hero-cta"><button class="mini solid" data-open="prompts">Esplora le risorse <span class="arw">→</span></button>
+    return `<div class="hero-cta">${sectionVisible('prompts')?'<button class="mini solid" data-open="prompts">Esplora le risorse <span class="arw">→</span></button>':''}
       <a class="mini ghost" href="${isPH(CFG.links?.instagram)?'#':CFG.links?.instagram}" ${isPH(CFG.links?.instagram)?'':'target="_blank" rel="noopener"'} data-track="ig_follow">Instagram ↗</a></div>`;
   }
 
@@ -460,20 +471,22 @@ form{display:flex;flex-direction:column;gap:14px}
   function tileWrap(t,inner,extraClass="",noGo){
     const cover=isCover(t.cover);
     const themeCls=t.theme==="dark"?"dark":(t.theme==="blue"?"dark blue":"");
-    const cls=["tile","span"+(t.size||2),themeCls, cover?"has-cover":"", extraClass].filter(Boolean).join(" ");
+    const colors=t.colors||{},customColors=colors.background||colors.text||colors.secondaryText||colors.accent;
+    const cls=["tile","span"+(t.size||2),themeCls,cover?"has-cover":"",customColors?"custom-colors":"",extraClass].filter(Boolean).join(" ");
+    const colorStyle=customColors?`style="${colors.background?`--tile-bg:${esc(colors.background)};`:''}${colors.text?`--tile-text:${esc(colors.text)};`:''}${colors.secondaryText?`--tile-secondary:${esc(colors.secondaryText)};`:''}${colors.accent?`--tile-accent:${esc(colors.accent)};`:''}"`:'';
     let url=t.url;
     if(url==="{{INSTAGRAM_URL}}")url=CFG.links?.instagram;
     if(url==="{{WEBSITE_URL}}")url=CFG.links?.website;
     const hasUrl=url&&!isPH(url);
-    const custom=t.buttons&&t.buttons.length;
+    const custom=(t.buttons||[]).some(b=>!b.open||sectionVisible(b.open));
     const tag = custom?"div":(t.open?"button":(hasUrl?"a":"div"));
     const attrs = custom?"":(t.open?`data-open="${t.open}"`:(hasUrl?`href="${esc(url)}" target="_blank" rel="noopener" data-track="tile_${t.key}"`:""));
     const hit=custom&&t.kind!=="hero"?(t.open?`<button class="tile-hit" data-open="${esc(t.open)}" aria-label="${esc(t.title)}"></button>`:hasUrl?`<a class="tile-hit" href="${esc(url)}" target="_blank" rel="noopener" aria-label="${esc(t.title)}"></a>`:""):"";
-    return `<${tag} class="${cls}" ${attrs}>${hit}${inner}</${tag}>`;
+    return `<${tag} class="${cls}" ${colorStyle} ${attrs}>${hit}${inner}</${tag}>`;
   }
 
   function renderTiles(){
-    $("#bento").innerHTML=(CFG.tiles||[]).filter(t=>!t.hidden).map(t=>{
+    $("#bento").innerHTML=(CFG.tiles||[]).filter(t=>!t.hidden&&(!t.open||sectionVisible(t.open))).map(t=>{
       if(t.kind==="hero")return heroTile(t);
       if(t.kind==="tools")return toolsTile(t);
       if(t.kind==="widget")return widgetTile(t);
@@ -482,8 +495,9 @@ form{display:flex;flex-direction:column;gap:14px}
   }
 
   function btnRow(t){
-    if(!t.buttons||!t.buttons.length) return `<span class="go">Apri <span class="arw">→</span></span>`;
-    return `<div class="tbtns">`+t.buttons.map(b=>{
+    const buttons=(t.buttons||[]).filter(b=>!b.open||sectionVisible(b.open));
+    if(!buttons.length) return t.open&&sectionVisible(t.open)?`<span class="go">Apri <span class="arw">→</span></span>`:'';
+    return `<div class="tbtns">`+buttons.map(b=>{
       if(b.open) return `<button class="tbtn" data-open="${b.open}">${esc(b.label||'Apri')} <span class="arw">→</span></button>`;
       let u=b.url; if(u==="{{INSTAGRAM_URL}}")u=CFG.links?.instagram; if(u==="{{WEBSITE_URL}}")u=CFG.links?.website;
       const dead=!u||isPH(u);
@@ -596,10 +610,13 @@ form{display:flex;flex-direction:column;gap:14px}
   $("#projGrid").innerHTML=(CFG.projects||[]).map(pr=>{const dead=isPH(pr.url);return `<a class="proj" href="${dead?'#':pr.url}" ${dead?'':'target="_blank" rel="noopener"'} data-track="project"><div class="thumb"><div class="gen ${pr.preview||'graphite'}"></div></div><div class="b"><span class="cat">${esc(pr.category)}</span><h3>${esc(isPH(pr.title)?'Progetto':pr.title)}</h3><span class="by">di ${esc(isPH(pr.author)?'Autore':pr.author)}</span></div></a>`;}).join("");
 
   /* sheet */
-  MaxExperience.addCommunityPanel();
+  MaxExperience.addCommunityPanel(CFG);
+  $$('.panel[data-p]').forEach(panel=>panel.hidden=!sectionVisible(panel.dataset.p));
+  $$('[data-open]').forEach(control=>{if(!sectionVisible(control.dataset.open))control.hidden=true;});
+  const aboutBlock=$('.about');if(aboutBlock)aboutBlock.hidden=!sectionVisible('about');
   const sheet=$("#sheet"),sheetScrim=$("#sheetScrim"),TITLES={free:"Risorse Gratuite",prompts:"Guide & Prompt",tools:"Stack Strumenti",community:"Community",contact:"Collaborazioni",communityContact:"Informazioni e call community"};
   let sheetOpen=false;
-  function openPanel(name,push=true){if(!TITLES[name])return;$$(".panel").forEach(p=>p.classList.toggle("on",p.dataset.p===name));$("#sheetTitle").textContent=TITLES[name];sheet.classList.add("show");sheetScrim.classList.add("show");document.body.style.overflow="hidden";sheetOpen=true;sheet.querySelector(".sheet-body").scrollTop=0;if(push&&location.hash!=="#/"+name)history.pushState({panel:name},"","#/"+name);}
+  function openPanel(name,push=true){if(!TITLES[name]||!sectionVisible(name)){toast('Questa sezione non è disponibile.');return false;}$$(".panel").forEach(p=>p.classList.toggle("on",p.dataset.p===name));$("#sheetTitle").textContent=TITLES[name];sheet.classList.add("show");sheetScrim.classList.add("show");document.body.style.overflow="hidden";sheetOpen=true;sheet.querySelector(".sheet-body").scrollTop=0;if(push&&location.hash!=="#/"+name)history.pushState({panel:name},"","#/"+name);return true;}
   function closeSheet(pop=true){sheet.classList.remove("show");sheetScrim.classList.remove("show");document.body.style.overflow="";sheetOpen=false;if(pop&&location.hash.startsWith("#/"))history.pushState(null,"","#");}
   $("#sheetBack").addEventListener("click",()=>closeSheet());$("#sheetClose").addEventListener("click",()=>closeSheet());sheetScrim.addEventListener("click",()=>closeSheet());
 
@@ -662,12 +679,14 @@ form{display:flex;flex-direction:column;gap:14px}
   function route(){
     const h=location.hash;
     if(h.startsWith("#prompt/")){
+      if(!sectionVisible('prompts')){closeModalSilently();if(sheetOpen)closeSheet(false);history.replaceState(null,'','#');return;}
       let slug;try{slug=decodeURIComponent(h.slice(8));}catch{slug="";}
       const p=(CFG.prompts||[]).find(x=>x.slug===slug);
       if(p){ openPanel("prompts",false); openModal(promptHTML(p)); }else{closeModalSilently();openPanel("prompts",false);toast("Questa guida non è disponibile. Esplora la libreria.");}
       return;
     }
     if(h.startsWith("#free/")){
+      if(!sectionVisible('free')){closeModalSilently();if(sheetOpen)closeSheet(false);history.replaceState(null,'','#');return;}
       let slug;try{slug=decodeURIComponent(h.slice(6));}catch{slug="";}
       const f=(CFG.free||[]).find(x=>x.slug===slug);
       if(f){ openPanel("free",false); openModal(freeHTML(f)); }
